@@ -5,7 +5,7 @@ import pandas as pd
 
 # Load movie list and similarity matrix
 movies = pickle.load(open('model/movie_list.pkl', 'rb'))  # movies should be a DataFrame
-similarity = pickle.load(open('model/similarity.pkl', 'rb'))  # similarity matrix
+similarity = pickle.load(open('model/similarity_compressed.pkl', 'rb'))  # similarity matrix
 
 
 # Function to fetch movie posters from TMDB API
