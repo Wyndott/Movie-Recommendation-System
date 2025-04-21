@@ -3,8 +3,9 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# Load movies data
+# --- Load Saved Files ---
 movies = pickle.load(open('model/movie_list.pkl', 'rb'))  # movies should be a DataFrame
+# similarity = pickle.load(open('model/similarity.pkl', 'rb'))  # Removed since not used
 
 # --- Function to fetch movie posters ---
 def fetch_poster(movie_id):
@@ -21,25 +22,21 @@ def fetch_poster(movie_id):
     except Exception as e:
         return "https://via.placeholder.com/500x750?text=Error"
 
-
-# --- Recommendation Function ---
-def recommend(survey_data=None):
+# --- Recommendation Function (Only survey-based for now) ---
+def recommend(movie=None, survey_data=None):
     recommended_movie_names = []
     recommended_movie_posters = []
 
     if survey_data:
-        # Filter movies based on the user's preferred genres
         preferred_genres = survey_data.get("preferred_genres", [])
         filtered_movies = movies[movies['genres'].apply(lambda x: any(genre in x for genre in preferred_genres))]
 
-        # Generate recommendations based on filtered movies
         for _, movie in filtered_movies.head(5).iterrows():
             movie_id = movie.movieId
             recommended_movie_names.append(movie.title)
             recommended_movie_posters.append(fetch_poster(movie_id))
 
     return recommended_movie_names, recommended_movie_posters
-
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="Movie Recommender", layout="wide")
@@ -48,52 +45,31 @@ st.title('🎬 Movie Recommender System')
 # --- Create Profile Section ---
 st.subheader("Create Your Profile")
 
-# Dropdown for selecting a contact method
 contact_method = st.selectbox("How would you like to be contacted?", ["Email", "Phone", "None"])
-
+email, phone = None, None
 if contact_method == "Email":
     email = st.text_input("Enter your email address:")
 elif contact_method == "Phone":
     phone = st.text_input("Enter your phone number:")
 
-# --- Movie Recommendation Survey ---
+# --- Survey Section ---
 st.subheader("Movie Recommendation Survey")
 
-# Age Question
 age = st.selectbox("Age*", ["Under 18", "18 to 24", "25 to 34", "35 to 44", "45 to 55", "65 and over"])
+storyline_importance = st.selectbox("How important is a strong storyline or plot to you in a movie?*",
+                                    ["1 - Not Important", "2", "3", "4", "5 - Most Important"])
+complex_characters = st.selectbox("How much do you enjoy movies with complex characters or deep emotional themes?*",
+                                  ["1 - Not Important", "2", "3", "4", "5 - Most Important"])
+movie_frequency = st.selectbox("How often do you watch movies?*",
+                               ["1 - Rarely", "2", "3", "4", "5 - Almost every day"])
+genres = st.multiselect("Choose 5 movie genres that you prefer*",
+                        ["Action", "Adventure", "Animation", "Comedy", "Drama", "Fantasy", "Horror", "Mystery",
+                         "Romance", "Sci-Fi (Science Fiction)", "Thriller", "Crime", "Documentary", "Musical",
+                         "Family", "History", "Biography", "War", "Western", "Sport"], max_selections=5)
 
-# Importance of Storyline
-storyline_importance = st.selectbox(
-    "How important is a strong storyline or plot to you in a movie?*",
-    ["1 - Not Important", "2", "3", "4", "5 - Most Important"]
-)
-
-# Importance of Complex Characters
-complex_characters = st.selectbox(
-    "How much do you enjoy movies with complex characters or deep emotional themes?*",
-    ["1 - Not Important", "2", "3", "4", "5 - Most Important"]
-)
-
-# Movie Watching Frequency
-movie_frequency = st.selectbox(
-    "How often do you watch movies?*",
-    ["1 - Rarely", "2", "3", "4", "5 - Almost every day"]
-)
-
-# Movie Genre Preferences (Multiple Dropdowns)
-genres = st.multiselect(
-    "Choose 5 movie genres that you prefer*",
-    ["Action", "Adventure", "Animation", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Romance",
-     "Sci-Fi (Science Fiction)", "Thriller", "Crime", "Documentary", "Musical", "Family", "History",
-     "Biography", "War", "Western", "Sport"],
-    max_selections=5
-)
-
-# Option to create a profile and save the survey data
 create_profile = st.checkbox("Create Profile")
 
 if create_profile:
-    # Create a dictionary to store the user's profile information
     user_profile = {
         "contact_method": contact_method,
         "email": email if contact_method == "Email" else None,
@@ -105,33 +81,29 @@ if create_profile:
         "preferred_genres": genres
     }
 
-    # Display confirmation message
     st.write("Profile created successfully! You can now receive personalized recommendations.")
     st.write("Your Profile Data:")
-    st.json(user_profile)  # Display the profile data
+    st.json(user_profile)
 
-    # Optionally, you could save the profile information into a file or database.
-    # For example, saving the profile as a CSV or appending it to a CSV file.
     df = pd.DataFrame([user_profile])
     df.to_csv("user_profiles.csv", mode='a', header=False, index=False)
 
-# --- Movie Selection Section ---
-st.subheader("Select a Movie for Recommendations")
+# --- Movie Selection Section (not used without similarity.pkl) ---
+st.subheader("Recommendations Based on Your Survey")
 
-movie_list = movies['title'].values
-selected_movie = st.selectbox("Type or select a movie from the dropdown", movie_list)
+# ✅ Initialize empty lists to avoid runtime errors
+names, posters = [], []
 
 if st.button('Get Recommendations'):
-    # If no movie is selected, use survey data to recommend movies
-    if create_profile:  # Ensure that the profile is created before recommending
+    if create_profile:
         names, posters = recommend(survey_data=user_profile)
     else:
         st.write("Please complete the survey to get recommendations.")
 
-    # Create 5 columns for the recommendations
-    if names and posters:
-        cols = st.columns(5)
-        for i in range(5):
-            with cols[i]:
-                st.text(names[i])  # Movie title
-                st.image(posters[i])  # Movie poster
+# ✅ Display recommendations safely
+if names and posters:
+    cols = st.columns(5)
+    for i in range(len(names)):
+        with cols[i]:
+            st.text(names[i])
+            st.image(posters[i])
