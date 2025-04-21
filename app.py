@@ -3,12 +3,10 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# Load movie list and similarity matrix
+# Load movies data
 movies = pickle.load(open('model/movie_list.pkl', 'rb'))  # movies should be a DataFrame
-similarity = pickle.load(open('model/similarity_compressed.pkl', 'rb'))  # similarity matrix
 
-
-# Function to fetch movie posters from TMDB API
+# --- Function to fetch movie posters ---
 def fetch_poster(movie_id):
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=8265bd1679663a7ea12ac168da84d2e8&language=en-US"
@@ -24,30 +22,17 @@ def fetch_poster(movie_id):
         return "https://via.placeholder.com/500x750?text=Error"
 
 
-# Recommendation function based on movie or survey data
-def recommend(movie=None, survey_data=None):
+# --- Recommendation Function ---
+def recommend(survey_data=None):
     recommended_movie_names = []
     recommended_movie_posters = []
 
-    if movie:
-        # Get index of the selected movie
-        index = movies[movies['title'] == movie].index[0]
-
-        # Get distances based on cosine similarity
-        distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
-
-        # Start from index 1 to skip the selected movie itself
-        for i in distances[1:6]:
-            movie_id = movies.iloc[i[0]].movieId  # Ensure this matches the column name in your DataFrame
-            recommended_movie_names.append(movies.iloc[i[0]].title)
-            recommended_movie_posters.append(fetch_poster(movie_id))
-    elif survey_data:
-        # Use survey data to recommend movies
-        preferred_genres = survey_data.get("preferred_genres", [])
-
+    if survey_data:
         # Filter movies based on the user's preferred genres
+        preferred_genres = survey_data.get("preferred_genres", [])
         filtered_movies = movies[movies['genres'].apply(lambda x: any(genre in x for genre in preferred_genres))]
 
+        # Generate recommendations based on filtered movies
         for _, movie in filtered_movies.head(5).iterrows():
             movie_id = movie.movieId
             recommended_movie_names.append(movie.title)
@@ -56,11 +41,11 @@ def recommend(movie=None, survey_data=None):
     return recommended_movie_names, recommended_movie_posters
 
 
-# Streamlit UI
+# --- Streamlit UI ---
 st.set_page_config(page_title="Movie Recommender", layout="wide")
 st.title('🎬 Movie Recommender System')
 
-# Create Profile Section
+# --- Create Profile Section ---
 st.subheader("Create Your Profile")
 
 # Dropdown for selecting a contact method
@@ -71,7 +56,7 @@ if contact_method == "Email":
 elif contact_method == "Phone":
     phone = st.text_input("Enter your phone number:")
 
-# Movie Recommendation Survey
+# --- Movie Recommendation Survey ---
 st.subheader("Movie Recommendation Survey")
 
 # Age Question
@@ -125,28 +110,25 @@ if create_profile:
     st.write("Your Profile Data:")
     st.json(user_profile)  # Display the profile data
 
-    # Optionally, save the profile information into a CSV file
+    # Optionally, you could save the profile information into a file or database.
+    # For example, saving the profile as a CSV or appending it to a CSV file.
     df = pd.DataFrame([user_profile])
     df.to_csv("user_profiles.csv", mode='a', header=False, index=False)
 
-# Movie Selection Section
+# --- Movie Selection Section ---
 st.subheader("Select a Movie for Recommendations")
 
 movie_list = movies['title'].values
 selected_movie = st.selectbox("Type or select a movie from the dropdown", movie_list)
 
 if st.button('Get Recommendations'):
-    # If a movie is selected, show recommendations based on similarity
-    if selected_movie:
-        names, posters = recommend(movie=selected_movie)  # Recommendations based on movie selection
+    # If no movie is selected, use survey data to recommend movies
+    if create_profile:  # Ensure that the profile is created before recommending
+        names, posters = recommend(survey_data=user_profile)
     else:
-        # If no movie is selected, use survey data to recommend movies
-        if create_profile:  # Ensure that the profile is created before recommending
-            names, posters = recommend(survey_data=user_profile)
-        else:
-            st.write("Please complete the survey to get recommendations.")
+        st.write("Please complete the survey to get recommendations.")
 
-    # Display the recommendations in a grid layout
+    # Create 5 columns for the recommendations
     if names and posters:
         cols = st.columns(5)
         for i in range(5):
